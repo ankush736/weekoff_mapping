@@ -32,9 +32,10 @@ if uploaded_file:
 
         st.success("File uploaded successfully!")
 
-        # Validate columns
+        # Normalize column names
+        df.columns = df.columns.str.lower().str.strip()
+
         expected_cols = ["empcode", "week off"]
-        df.columns = df.columns.str.lower()
 
         if not all(col in df.columns for col in expected_cols):
             st.error("File must contain 'empcode' and 'week off' columns")
@@ -47,55 +48,59 @@ if uploaded_file:
         st.error(f"Error reading file: {e}")
 
 # -------------------------
-# Options
+# Date Selection
 # -------------------------
 if df is not None:
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns(2)
 
     with col1:
-        week_day = st.selectbox(
-            "Select Week Off Day",
-            ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-        )
+        from_date = st.date_input("From Date")
 
     with col2:
-        from_month = st.date_input("From Date")
-
-    with col3:
-        to_month = st.date_input("To Date")
+        to_date = st.date_input("To Date")
 
     # -------------------------
     # Generate Mapping
     # -------------------------
     if st.button("⚙️ Generate Mapping"):
 
-        if from_month > to_month:
+        if from_date > to_date:
             st.error("From Date cannot be after To Date")
             st.stop()
 
-        # Map weekday to number
+        # Weekday mapping
         week_day_map = {
-            "Monday": 0, "Tuesday": 1, "Wednesday": 2,
-            "Thursday": 3, "Friday": 4, "Saturday": 5, "Sunday": 6
+            "monday": 0, "tuesday": 1, "wednesday": 2,
+            "thursday": 3, "friday": 4, "saturday": 5, "sunday": 6
         }
-
-        target_day = week_day_map[week_day]
 
         result = []
 
-        current_date = from_month
+        # Clean week off values
+        df["week off"] = df["week off"].str.lower().str.strip()
 
-        while current_date <= to_month:
-            if current_date.weekday() == target_day:
-                for emp in df["empcode"]:
+        for _, row in df.iterrows():
+            emp = row["empcode"]
+            emp_weekoff = row["week off"]
+
+            if emp_weekoff not in week_day_map:
+                st.warning(f"Invalid week off '{emp_weekoff}' for emp {emp}")
+                continue
+
+            target_day = week_day_map[emp_weekoff]
+
+            current_date = from_date
+
+            while current_date <= to_date:
+                if current_date.weekday() == target_day:
                     result.append({
                         "shift name": "WeekOff",
                         "from date": current_date,
                         "to date": current_date,
                         "empcode": emp
                     })
-            current_date += timedelta(days=1)
+                current_date += timedelta(days=1)
 
         result_df = pd.DataFrame(result)
 
